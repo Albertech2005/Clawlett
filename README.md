@@ -212,6 +212,9 @@ This skill is designed to work with [OpenClaw](https://openclaw.ai) agents. The 
 
 See [SKILL.md](./clawlett/SKILL.md) for the skill specification.
 
+## Troubleshooting
+Checkout [Troubleshooting Guide](TROUBLESHOOTING.md) for common issues. 
+
 ## Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
