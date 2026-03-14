@@ -65,14 +65,17 @@ const ORDERLY_DOMAIN = {
     verifyingContract: VERIFY_CONTRACT,
 }
 
-// EIP-712 types
-const EIP712_TYPES = {
+// EIP-712 types — each signing call needs its own types object (ethers v6 requirement)
+const REGISTRATION_TYPES = {
     Registration: [
         { name: 'brokerId',           type: 'string'  },
         { name: 'chainId',            type: 'uint256' },
         { name: 'timestamp',          type: 'uint64'  },
         { name: 'registrationNonce',  type: 'uint256' },
     ],
+}
+
+const ADD_ORDERLY_KEY_TYPES = {
     AddOrderlyKey: [
         { name: 'brokerId',   type: 'string'  },
         { name: 'chainId',    type: 'uint256' },
@@ -81,6 +84,9 @@ const EIP712_TYPES = {
         { name: 'timestamp',  type: 'uint64'  },
         { name: 'expiration', type: 'uint64'  },
     ],
+}
+
+const WITHDRAW_TYPES = {
     Withdraw: [
         { name: 'brokerId',      type: 'string'  },
         { name: 'chainId',       type: 'uint256' },
@@ -533,7 +539,7 @@ async function handleSetup(args) {
             timestamp,
             registrationNonce,
         }
-        const signature = await agentWallet.signTypedData(ORDERLY_DOMAIN, EIP712_TYPES, registrationMsg)
+        const signature = await agentWallet.signTypedData(ORDERLY_DOMAIN, REGISTRATION_TYPES, registrationMsg)
 
         // POST to register
         const regRes = await fetch(`${ORDERLY_API}/v1/register_account`, {
@@ -567,7 +573,7 @@ async function handleSetup(args) {
         timestamp,
         expiration,
     }
-    const keySig = await agentWallet.signTypedData(ORDERLY_DOMAIN, EIP712_TYPES, addKeyMsg)
+    const keySig = await agentWallet.signTypedData(ORDERLY_DOMAIN, ADD_ORDERLY_KEY_TYPES, addKeyMsg)
 
     const keyRes = await fetch(`${ORDERLY_API}/v1/orderly_key`, {
         method: 'POST',
@@ -776,7 +782,7 @@ async function handleWithdraw(args) {
         withdrawNonce,
         timestamp,
     }
-    const signature = await agentWallet.signTypedData(ORDERLY_DOMAIN, EIP712_TYPES, withdrawMsg)
+    const signature = await agentWallet.signTypedData(ORDERLY_DOMAIN, WITHDRAW_TYPES, withdrawMsg)
 
     // Submit withdrawal request
     const body = {
