@@ -57,8 +57,16 @@ const ORDERLY_VAULT   = '0x816f722424B49Cf1275cc86DA9840Fbd5a6167e9'
 const VERIFY_CONTRACT = '0x6F7a338F2aA472838dEFD3283eB360d4Dff5D203'
 const USDC_ADDRESS    = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
 
-// EIP-712 domain
-const ORDERLY_DOMAIN = {
+// EIP-712 domains
+// Off-chain operations (registration, adding orderly key) use a placeholder verifyingContract
+const ORDERLY_OFFCHAIN_DOMAIN = {
+    name: 'Orderly',
+    version: '1',
+    chainId: CHAIN_ID,
+    verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC',
+}
+// On-chain operations (withdraw) use the actual verify contract
+const ORDERLY_ONCHAIN_DOMAIN = {
     name: 'Orderly',
     version: '1',
     chainId: CHAIN_ID,
@@ -539,7 +547,7 @@ async function handleSetup(args) {
             timestamp,
             registrationNonce,
         }
-        const signature = await agentWallet.signTypedData(ORDERLY_DOMAIN, REGISTRATION_TYPES, registrationMsg)
+        const signature = await agentWallet.signTypedData(ORDERLY_OFFCHAIN_DOMAIN, REGISTRATION_TYPES, registrationMsg)
 
         // POST to register
         const regRes = await fetch(`${ORDERLY_API}/v1/register_account`, {
@@ -547,9 +555,15 @@ async function handleSetup(args) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 signature,
-                userAddress:      agentWallet.address.toLowerCase(),
-                verifyingContract: VERIFY_CONTRACT,
-                message:          { ...registrationMsg, chainId: CHAIN_ID, timestamp: Number(timestamp), registrationNonce: Number(registrationNonce) },
+                userAddress:       agentWallet.address.toLowerCase(),
+                verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC',
+                message: {
+                    brokerId:          BROKER_ID,
+                    chainId:           CHAIN_ID,
+                    timestamp:         Number(timestamp),
+                    registrationNonce: Number(registrationNonce),
+                    chainType:         'EVM',
+                },
             }),
         })
         const regData = await regRes.json()
@@ -573,7 +587,7 @@ async function handleSetup(args) {
         timestamp,
         expiration,
     }
-    const keySig = await agentWallet.signTypedData(ORDERLY_DOMAIN, ADD_ORDERLY_KEY_TYPES, addKeyMsg)
+    const keySig = await agentWallet.signTypedData(ORDERLY_OFFCHAIN_DOMAIN, ADD_ORDERLY_KEY_TYPES, addKeyMsg)
 
     const keyRes = await fetch(`${ORDERLY_API}/v1/orderly_key`, {
         method: 'POST',
@@ -581,12 +595,15 @@ async function handleSetup(args) {
         body: JSON.stringify({
             signature:         keySig,
             userAddress:       agentWallet.address.toLowerCase(),
-            verifyingContract: VERIFY_CONTRACT,
+            verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC',
             message: {
-                ...addKeyMsg,
+                brokerId:   BROKER_ID,
                 chainId:    CHAIN_ID,
+                orderlyKey: getOrderlyKeyStr(orderlyKey.rawPublicKey),
+                scope:      'trading',
                 timestamp:  Number(timestamp),
                 expiration: Number(expiration),
+                chainType:  'EVM',
             },
         }),
     })
@@ -782,7 +799,7 @@ async function handleWithdraw(args) {
         withdrawNonce,
         timestamp,
     }
-    const signature = await agentWallet.signTypedData(ORDERLY_DOMAIN, WITHDRAW_TYPES, withdrawMsg)
+    const signature = await agentWallet.signTypedData(ORDERLY_ONCHAIN_DOMAIN, WITHDRAW_TYPES, withdrawMsg)
 
     // Submit withdrawal request
     const body = {
