@@ -147,6 +147,8 @@ const SAFE_ABI = [
     'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) returns (bool)',
     'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation) returns (bool success)',
     'function isModuleEnabled(address module) view returns (bool)',
+    'function nonce() view returns (uint256)',
+    'function getOwners() view returns (address[])',
 ]
 
 const MULTISEND_ABI = ['function multiSend(bytes transactions) payable']
