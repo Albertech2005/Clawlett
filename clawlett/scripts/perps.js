@@ -275,11 +275,21 @@ function signOrderlyRequest(privateKey, timestamp, method, urlPath, body = '') {
     return base64urlEncode(sig)
 }
 
+// Compute the on-chain Orderly account ID:
+//   keccak256(abi.encode(walletAddress, keccak256(brokerId)))
+// This matches what Orderly's /v1/get_account returns and must be used as
+// the orderly-account-id header (NOT the "broker|address" format).
+function computeOrderlyAccountId(walletAddress) {
+    const brokerHash = ethers.keccak256(ethers.toUtf8Bytes(BROKER_ID))
+    const encoded    = ethers.AbiCoder.defaultAbiCoder().encode(['address', 'bytes32'], [walletAddress, brokerHash])
+    return ethers.keccak256(encoded)
+}
+
 function buildAuthHeaders(accountAddress, orderlyKey, privateKey, method, urlPath, body = '') {
     const timestamp = Date.now()
     const signature = signOrderlyRequest(privateKey, timestamp, method, urlPath, body)
     return {
-        'orderly-account-id': `${BROKER_ID}|${accountAddress.toLowerCase()}`,
+        'orderly-account-id': computeOrderlyAccountId(accountAddress),
         'orderly-key':        getOrderlyKeyStr(orderlyKey.rawPublicKey),
         'orderly-timestamp':  String(timestamp),
         'orderly-signature':  signature,
@@ -632,7 +642,7 @@ async function handleSetup(args) {
         brokerId:   BROKER_ID,
         chainId:    BigInt(CHAIN_ID),
         orderlyKey: keyStr,
-        scope:      'trading',
+        scope:      'trading,read',
         timestamp,
         expiration,
     }
@@ -649,7 +659,7 @@ async function handleSetup(args) {
                 brokerId:   BROKER_ID,
                 chainId:    CHAIN_ID,
                 orderlyKey: getOrderlyKeyStr(orderlyKey.rawPublicKey),
-                scope:      'trading',
+                scope:      'trading,read',
                 timestamp:  Number(timestamp),
                 expiration: Number(expiration),
                 chainType:  'EVM',
