@@ -37,7 +37,7 @@
  */
 
 import { ethers } from 'ethers'
-import { generateKeyPairSync, createSign, createPrivateKey, createPublicKey } from 'crypto'
+import { generateKeyPairSync, sign as cryptoSign, createPrivateKey, createPublicKey } from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -270,10 +270,8 @@ function getOrderlyKeyStr(rawPublicKey) {
 
 function signOrderlyRequest(privateKey, timestamp, method, urlPath, body = '') {
     const message = `${timestamp}${method.toUpperCase()}${urlPath}${body}`
-    const sign = createSign('Ed25519')
-    sign.update(Buffer.from(message))
-    sign.end()
-    const sig = sign.sign(privateKey)
+    // Ed25519 has no separate digest step — pass null as algorithm
+    const sig = cryptoSign(null, Buffer.from(message), privateKey)
     return base64urlEncode(sig)
 }
 
