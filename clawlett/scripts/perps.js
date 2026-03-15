@@ -120,11 +120,6 @@ const ZODIAC_HELPERS_ABI = [
     'function approveForFactory(address factory, address token, uint256 amount) external',
 ]
 
-const SAFE_ABI = [
-    'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) returns (bool)',
-    'function nonce() view returns (uint256)',
-]
-
 const VAULT_ABI = [
     'function deposit((bytes32 accountId, bytes32 brokerHash, bytes32 tokenHash, uint128 tokenAmount) data) external payable',
     'function depositTo(address receiver, (bytes32 accountId, bytes32 brokerHash, bytes32 tokenHash, uint128 tokenAmount) data) external payable',
