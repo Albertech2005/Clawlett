@@ -816,6 +816,15 @@ async function handleDeposit(args) {
         process.exit(1)
     }
 
+    if (!args.execute) {
+        console.log('\n--- DRY RUN (add --execute to send) ---')
+        console.log(`   Would deposit ${formatUSDC(depositAmount)} to Orderly`)
+        console.log(`   Account: ${BROKER_ID}|${agentWallet.address.toLowerCase()}`)
+        console.log(`   Deposit fee: ${formatEth(depositFee)} ETH`)
+        console.log('\nRe-run with --execute to confirm.')
+        return
+    }
+
     console.log('\nDepositing USDC to Orderly...')
     const receipt = await callVaultDeposit(config, agentWallet, depositData, depositFee)
 
