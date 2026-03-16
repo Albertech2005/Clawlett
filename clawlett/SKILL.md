@@ -1,25 +1,29 @@
 # Clawlett
 
-Secure token swaps and Trenches trading on **Base Mainnet**, powered by Safe + Zodiac Roles.
+Secure token swaps and Trenches trading, powered by Safe + Zodiac Roles.
+
+**Supported chains:**
+- **Base** (Chain ID: 8453) — default. KyberSwap, CoW Protocol, Trenches, CNS.
+- **BNB Chain** (Chain ID: 56) — KyberSwap swaps + balance checking only.
 
 Swap engines:
-- **KyberSwap** (DEX aggregator for optimal routes) — default
-- **CoW Protocol** (MEV-protected batch auctions)
+- **KyberSwap** (DEX aggregator for optimal routes) — default, available on all chains
+- **CoW Protocol** (MEV-protected batch auctions) — Base only
 
-Token creation & trading: **Trenches** (via AgentKeyFactoryV3).
-
-> **Network: Base Mainnet (Chain ID: 8453)**
+Token creation & trading: **Trenches** (via AgentKeyFactoryV3) — Base only.
 
 ## Overview
 
 This skill enables autonomous token swaps and Trenches token creation/trading through a Gnosis Safe. The agent operates through Zodiac Roles which restricts operations to:
 - Swapping tokens via KyberSwap Aggregator (default) or CoW Protocol
-- Creating tokens on Trenches
-- Buying and selling Trenches tokens via factory
+- Creating tokens on Trenches (Base only)
+- Buying and selling Trenches tokens via factory (Base only)
 - Approving tokens for KyberSwap Router and CoW Vault Relayer
 - Executing swaps via ZodiacHelpers delegatecall
 - Wrapping ETH to WETH and unwrapping WETH to ETH via ZodiacHelpers
 - Sending swapped tokens only back to the Safe (no draining)
+
+All scripts accept `--chain <name>` (default: `base`). The same `agent.pk` is shared across chains; each chain gets its own Safe and config directory (`config/<chain>/`).
 
 ## Execution Policy
 
@@ -33,21 +37,21 @@ This applies to all on-chain operations: swaps, token creation, buys, sells, wra
 
 ## Capabilities
 
-| Action | Autonomous | Notes |
-|--------|------------|-------|
-| Check balances | ✅ | ETH and any ERC20 on Base Mainnet |
-| Get swap quote (CoW) | ✅ | Via CoW Protocol (MEV-protected) |
-| Get swap quote (Kyber) | ✅ | Via KyberSwap Aggregator (best routes) |
-| Swap tokens (CoW) | ⚠️ | Requires explicit user confirmation |
-| Swap tokens (Kyber) | ⚠️ | Requires explicit user confirmation |
-| Wrap/Unwrap ETH | ⚠️ | Requires explicit user confirmation |
-| Approve tokens | ⚠️ | Only for CoW Vault Relayer and KyberSwap Router; requires explicit user confirmation |
-| Create token (Trenches) | ⚠️ | Requires explicit user confirmation |
-| Buy tokens (Trenches) | ⚠️ | Requires explicit user confirmation |
-| Sell tokens (Trenches) | ⚠️ | Requires explicit user confirmation |
-| Token info | ✅ | Fetch token details from Trenches API |
-| Token discovery | ✅ | Trending, new, top volume, gainers, losers |
-| Transfer funds | ❌ | Blocked by Roles |
+| Action | Autonomous | Chains | Notes |
+|--------|------------|--------|-------|
+| Check balances | ✅ | All | Native token and any ERC20 |
+| Get swap quote (Kyber) | ✅ | All | Via KyberSwap Aggregator (best routes) |
+| Get swap quote (CoW) | ✅ | Base | Via CoW Protocol (MEV-protected) |
+| Swap tokens (Kyber) | ⚠️ | All | Requires explicit user confirmation |
+| Swap tokens (CoW) | ⚠️ | Base | Requires explicit user confirmation |
+| Wrap/Unwrap ETH | ⚠️ | All | Requires explicit user confirmation |
+| Approve tokens | ⚠️ | All | Only for CoW Vault Relayer and KyberSwap Router; requires explicit user confirmation |
+| Create token (Trenches) | ⚠️ | Base | Requires explicit user confirmation |
+| Buy tokens (Trenches) | ⚠️ | Base | Requires explicit user confirmation |
+| Sell tokens (Trenches) | ⚠️ | Base | Requires explicit user confirmation |
+| Token info | ✅ | Base | Fetch token details from Trenches API |
+| Token discovery | ✅ | Base | Trending, new, top volume, gainers, losers |
+| Transfer funds | ❌ | - | Blocked by Roles |
 
 ## Agent Name (CNS)
 
@@ -59,7 +63,9 @@ Pass `--name` during initialization to register a CNS name. If omitted, CNS regi
 
 ### Verified Tokens
 
-Protected tokens can ONLY resolve to verified Base Mainnet addresses:
+Protected tokens can ONLY resolve to verified addresses per chain.
+
+**Base Mainnet:**
 
 | Token | Verified Address |
 |-------|--------------------|
@@ -78,6 +84,19 @@ Protected tokens can ONLY resolve to verified Base Mainnet addresses:
 | WELL | `0xA88594D404727625A9437C3f886C7643872296AE` |
 | BID | `0xa1832f7f4e534ae557f9b5ab76de54b1873e498b` |
 
+**BNB Chain:**
+
+| Token | Verified Address |
+|-------|--------------------|
+| BNB | Native BNB (`0x0000000000000000000000000000000000000000`) |
+| WBNB | `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` |
+| USDC | `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d` |
+| USDT | `0x55d398326f99059fF775485246999027B3197955` |
+| BUSD | `0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56` |
+| CAKE | `0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82` |
+| ETH | `0x2170Ed0880ac9A755fd29B2688956BD959F933F8` |
+| BTCB | `0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c` |
+
 If a scam token impersonates these symbols, the agent will detect and warn.
 
 ### Unverified Token Search
@@ -94,9 +113,9 @@ Tokens not in the verified list are searched via DexScreener (Base pairs). Searc
 
 ## Setup
 
-1. Owner provides their wallet address (and optionally an **agent name**)
-2. Agent generates keypair → **Owner sends at least 0.0001 ETH on Base Mainnet** to agent for gas (0.001 ETH recommended to cover all deployment transactions)
-3. Agent deploys Safe on Base Mainnet (agent as initial owner)
+1. Owner provides their wallet address (and optionally an **agent name** and **chain**)
+2. Agent generates keypair → **Owner sends gas** to agent (at least 0.0001 native token on the target chain; 0.001 recommended)
+3. Agent deploys Safe on the target chain (agent as initial owner)
 4. Agent deploys Zodiac Roles module
 5. Agent configures Roles permissions via MultiSend (enable module, scope targets, assign roles)
 6. Agent registers with backend API
@@ -111,6 +130,7 @@ Tokens not in the verified list are searched via DexScreener (Base pairs). Searc
 ```
 Initialize my wallet with owner 0x123...
 Initialize my wallet with owner 0x123... and name MYAGENT
+Initialize my wallet on BNB Chain with owner 0x123...
 ```
 
 ### Check Balance
@@ -236,9 +256,9 @@ Trade perpetuals on **perps.eolas.fun**, powered by [Orderly Network](https://or
 **Architecture:**
 - **Agent wallet = Orderly account.** Registration, API key, and `accountId` all derive from the agent address. Orderly's `/v1/register_account` does `ecrecover(sig) == userAddress` — the Safe address cannot be used.
 - **Safe = USDC source.** Calls `Vault.depositTo(agentWallet, data)` via Zodiac Roles so the receiver is explicitly the agent (not `msg.sender`). This ensures `accountId` validates against the agent, not the Safe.
-- **USDC approval is a one-time Safe transaction** signed by the human Safe owner (`--owner-key`). Sets `USDC.approve(OrderlyVault, type(uint256).max)`. After this, deposits check allowance and skip re-approval.
-- **Withdrawals** go to the agent wallet. Use `collect` to sweep back to the Safe.
-- **`ZodiacHelpers.approveForFactory` cannot be used** for the Orderly Vault — it has a hardcoded DEX factory whitelist and rejects `0x816f7...`.
+- **USDC approval is a one-time Safe transaction** queued by `node perps.js setup` and executed by the Safe owner via the Safe app. Sets `USDC.approve(OrderlyVault, type(uint256).max)`. After this, deposits check allowance and skip re-approval. No private key is ever passed to the CLI.
+- **Withdrawals** go directly to the Safe address — the agent wallet never holds user funds, preserving the unruggability guarantee.
+- **ZodiacHelpers** is the single gateway for all permitted external calls. Orderly Vault deposit support requires a `depositToOrderly` wrapper in ZodiacHelpers (pending contract update). Direct Vault scoping in Roles is intentionally avoided.
 
 **Orderly API authentication:**
 - `orderly-account-id` header = `keccak256(abi.encode(agentAddress, keccak256(brokerId)))` — **NOT** `broker|address` format
@@ -251,25 +271,24 @@ Trade perpetuals on **perps.eolas.fun**, powered by [Orderly Network](https://or
 
 ### One-Time Setup
 
-> Run this once per wallet. Requires both the agent key (agent.pk) and the Safe owner's private key.
+> Run this once per wallet.
 
 ```bash
-node scripts/perps.js setup --owner-key <0x_safe_owner_private_key>
+node scripts/perps.js setup
 ```
 
 What this does:
 1. Generates (or loads) an Ed25519 API keypair → saved to `config/orderly.pk` + `config/orderly.pub`
 2. Registers the agent wallet with Orderly Network (`/v1/register_account`)
 3. Adds the Ed25519 key to the account with scope `trading,read` (`/v1/orderly_key`)
-4. Prints instructions for adding the Orderly Vault to Zodiac Roles (if not already scoped)
-5. Signs and executes a Safe transaction to set `USDC.approve(OrderlyVault, unlimited)` using the owner's EIP-712 signature
+4. Checks the Safe's USDC allowance for the Orderly Vault — if not set, prints the exact transaction data to queue in the **Safe app** (no private key needed in the CLI)
 
-The `--owner-key` is only needed for step 5 (the USDC approval). If omitted, setup completes steps 1–4 and prints a reminder to re-run with `--owner-key`.
+The USDC approval is a **one-time Safe transaction** the owner executes via `app.safe.global`. The agent never handles the owner's private key.
 
 **If the Ed25519 key seems stale or gives auth errors:**
 ```bash
 rm config/orderly.pk config/orderly.pub
-node scripts/perps.js setup --owner-key <key>
+node scripts/perps.js setup
 ```
 
 ---
@@ -286,7 +305,7 @@ node scripts/perps.js deposit --amount 100 --execute  # actually deposits
 ```
 
 On-chain flow:
-1. Checks Safe's USDC allowance for OrderlyVault — fails with instructions if `setup --owner-key` hasn't been run
+1. Checks Safe's USDC allowance for OrderlyVault — prints Safe app transaction data if approval not set
 2. Calls `Vault.depositTo(agentWallet.address, depositData)` via `Roles.execTransactionWithRole` — receiver is explicitly the agent wallet
 
 Minimum deposit: no enforced minimum, but Orderly minimum order value is **$10 USDC**.
@@ -297,7 +316,7 @@ Minimum deposit: no enforced minimum, but Orderly minimum order value is **$10 U
 
 | Action | Autonomous | Notes |
 |--------|------------|-------|
-| Setup Orderly account | ⚠️ | One-time; needs `--owner-key` for USDC approval |
+| Setup Orderly account | ⚠️ | One-time; USDC approval done via Safe app |
 | Check Orderly balance | ✅ | Shows Orderly, Safe, and agent USDC |
 | List markets | ✅ | 95+ perp markets on Base |
 | Get price / market info | ✅ | Mark price, funding rate, OI |
@@ -358,7 +377,7 @@ node scripts/perps.js collect --all --execute
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| `GS026 Invalid owner` | Agent is not a Safe owner (removed during init Step 7) | Use `--owner-key` for Safe txs |
+| `GS026 Invalid owner` | Agent is not a Safe owner (removed during init Step 7) | Owner txs must go through Safe app |
 | `ModuleTransactionFailed` | `approveForFactory` whitelist doesn't include OrderlyVault | Don't use `approveForFactory`; use `Safe.execTransaction` with owner sig |
 | `Invalid digest` | `createSign('Ed25519')` fails on Node.js v24 | Use `crypto.sign(null, data, key)` |
 | `-1004 account id not exist` | `orderly-account-id` header wrong format | Use keccak256 hash, not `broker\|address` |
@@ -383,6 +402,7 @@ Orderly API: `https://api.orderly.org` · Broker ID: `eolas`
 
 ## Scripts
 
+<<<<<<< HEAD
 | Script | Description |
 |--------|-------------|
 | `initialize.js` | Deploy Safe + Roles, register CNS name |
@@ -391,6 +411,17 @@ Orderly API: `https://api.orderly.org` · Broker ID: `eolas`
 | `balance.js` | Check ETH and token balances |
 | `trenches.js` | Create and trade Trenches tokens via factory |
 | `perps.js` | Perpetuals trading on perps.eolas.fun via Orderly Network |
+=======
+| Script | Description | Chains |
+|--------|-------------|--------|
+| `initialize.js` | Deploy Safe + Roles, register CNS name | All |
+| `swap.js` | Swap tokens via KyberSwap Aggregator (default, optimal routes) | All |
+| `cow.js` | Swap tokens via CoW Protocol (MEV-protected) | Base |
+| `balance.js` | Check native token and ERC20 balances | All |
+| `trenches.js` | Create and trade Trenches tokens via factory | Base |
+
+All scripts accept `--chain <name>` (default: `base`).
+>>>>>>> upstream/main
 
 ### Examples
 
@@ -398,17 +429,20 @@ Orderly API: `https://api.orderly.org` · Broker ID: `eolas`
 # Initialize (name is optional, registers on CNS if provided)
 node scripts/initialize.js --owner 0x123...
 node scripts/initialize.js --owner 0x123... --name MYAGENT
+node scripts/initialize.js --chain bnb --owner 0x123...
 
 # Check balance
 node scripts/balance.js
 node scripts/balance.js --token USDC
+node scripts/balance.js --chain bnb --all
 
 # Swap tokens (KyberSwap Aggregator, default - optimal routes)
 node scripts/swap.js --from ETH --to USDC --amount 0.1
 node scripts/swap.js --from USDC --to ETH --amount 100 --execute
 node scripts/swap.js --from DAI --to AERO --amount 50 --execute --slippage 1
+node scripts/swap.js --chain bnb --from BNB --to USDC --amount 0.1
 
-# Swap tokens (CoW Protocol, MEV-protected)
+# Swap tokens (CoW Protocol, MEV-protected, Base only)
 node scripts/cow.js --from ETH --to USDC --amount 0.1
 node scripts/cow.js --from USDC --to WETH --amount 100 --execute
 node scripts/cow.js --from USDC --to DAI --amount 50 --execute --timeout 600
@@ -440,27 +474,25 @@ node scripts/trenches.js losers
 
 ## Configuration
 
-Scripts read from `config/wallet.json` (configured for Base Mainnet):
+Config is stored per-chain in `config/<chain>/wallet.json`. The agent private key (`config/agent.pk`) is shared across all chains.
 
-```json
-{
-  "chainId": 8453,
-  "owner": "0x...",
-  "agent": "0x...",
-  "safe": "0x...",
-  "roles": "0x...",
-  "roleKey": "0x...",
-  "name": "MYAGENT",
-  "cnsTokenId": 1
-}
 ```
+config/
+  agent.pk              # shared across all chains
+  base/
+    wallet.json         # Base Safe, Roles, etc.
+  bnb/
+    wallet.json         # BNB Safe, Roles, etc.
+```
+
+Existing users with `config/wallet.json` (old flat structure) will be auto-migrated to `config/base/wallet.json` on first run.
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BASE_RPC_URL` | `https://mainnet.base.org` | Base Mainnet RPC endpoint |
-| `WALLET_CONFIG_DIR` | `config` | Config directory |
+| `BASE_RPC_URL` | Chain default | RPC endpoint (overrides chain config) |
+| `WALLET_CONFIG_DIR` | `config` | Base config directory |
 | `TRENCHES_API_URL` | `https://trenches.bid` | Trenches API endpoint |
 
 ## Contracts (Base Mainnet)

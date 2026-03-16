@@ -391,7 +391,7 @@ function parseArgs() {
             case '--order-id':          result.orderId = args[++i]; break
             case '--all':               result.all      = true;      break
             case '--execute':           result.execute  = true;      break
-            case '--owner-key':         result.ownerKey = args[++i]; break
+            // --owner-key removed: USDC approval is now done via Safe app
             case '--config-dir': case '-c': result.configDir = args[++i]; break
             case '--rpc': case '-r':    result.rpc = args[++i]; break
             case '--help': case '-h':   printHelp(result.subcommand); process.exit(0)
@@ -507,9 +507,10 @@ async function signAndExecSafeTx(safeAddress, ownerWallet, to, value, data, oper
 // agentWallet.address is passed as receiver to depositTo() so accountId validates
 // against the agent address, not msg.sender (the Safe).
 //
-// USDC approval: the Safe owner must run `node perps.js setup --owner-key <key>` once
-// to set USDC.approve(OrderlyVault, max). Subsequent deposits skip re-approval when
-// the existing allowance is sufficient.
+// USDC approval: a one-time Safe transaction must be executed by the Safe owner
+// via the Safe app (app.safe.global). Use `node perps.js setup` to print the
+// transaction details to queue. Subsequent deposits skip re-approval when the
+// existing allowance is sufficient.
 async function callVaultDeposit(config, agentWallet, depositData, depositFee) {
     const roles      = loadRoles(config, agentWallet)
     const vaultIface = new ethers.Interface(VAULT_ABI)
@@ -517,18 +518,22 @@ async function callVaultDeposit(config, agentWallet, depositData, depositFee) {
 
     const usdcAmount = depositData.tokenAmount
 
-    // Step 1: Check USDC allowance — only the Safe owner can approve via setup
+    // Step 1: Check USDC allowance — Safe owner must approve via Safe app
     const allowance = await usdc.allowance(config.safe, ORDERLY_VAULT)
     if (allowance < usdcAmount) {
+        const erc20Iface = new ethers.Interface(ERC20_ABI)
+        const approveData = erc20Iface.encodeFunctionData('approve', [ORDERLY_VAULT, ethers.MaxUint256])
         throw new Error(
-            `Safe has insufficient USDC allowance for OrderlyVault.\n` +
-            `  Current allowance: ${allowance.toString()} (need ${usdcAmount.toString()})\n\n` +
-            `Run this ONCE to set unlimited approval (requires your owner wallet key):\n` +
-            `  node perps.js setup --owner-key <0x_your_private_key>\n\n` +
-            `Your Safe owner address: ${config.owner}`
+            `Safe has no USDC allowance for the Orderly Vault.\n\n` +
+            `Queue this transaction in your Safe app (app.safe.global) and execute it once:\n\n` +
+            `  Safe:  ${config.safe}\n` +
+            `  To:    ${USDC_ADDRESS}  (USDC)\n` +
+            `  Value: 0\n` +
+            `  Data:  ${approveData}\n\n` +
+            `This is a one-time approval. Deposits will work automatically after this.`
         )
     }
-    console.log(`   USDC allowance sufficient (${allowance.toString()}) ✓`)
+    console.log(`   USDC allowance sufficient ✓`)
 
     // Step 2: Call Vault.depositTo(agentWallet.address, depositData) via Roles
     // Using depositTo so receiver = agentWallet.address, accountId validates against agent not Safe
@@ -746,29 +751,22 @@ async function handleSetup(args) {
     console.log('\n========================================')
     console.log('         Orderly Setup Complete!')
     console.log('========================================')
-    // --- Step 5 (if --owner-key provided): Set one-time USDC approval for OrderlyVault ---
+    // --- Step 5: Check USDC approval status, print Safe app instructions if needed ---
     const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider)
     const existingAllowance = await usdc.allowance(config.safe, ORDERLY_VAULT)
 
     if (existingAllowance > 0n) {
         console.log('\n[5/5] USDC allowance already set ✓')
-    } else if (args.ownerKey) {
-        console.log('\n[5/5] Setting USDC → OrderlyVault approval (one-time)...')
-        const ownerWallet = new ethers.Wallet(args.ownerKey, provider)
-        console.log(`   Signing as: ${ownerWallet.address}`)
-        if (ownerWallet.address.toLowerCase() !== config.owner.toLowerCase()) {
-            throw new Error(`Owner key mismatch: key is for ${ownerWallet.address} but config.owner is ${config.owner}`)
-        }
-        const erc20Iface = new ethers.Interface(ERC20_ABI)
-        const approveData = erc20Iface.encodeFunctionData('approve', [ORDERLY_VAULT, ethers.MaxUint256])
-        const receipt = await signAndExecSafeTx(config.safe, ownerWallet, USDC_ADDRESS, 0n, approveData)
-        console.log(`   Tx: ${receipt.hash}`)
-        console.log('   USDC approval set ✓ (unlimited — no re-approval needed for future deposits)')
     } else {
-        console.log('\n[5/5] ⚠️  USDC approval not yet set.')
-        console.log(`   Before depositing, run once with your Safe owner key:`)
-        console.log(`   node perps.js setup --owner-key <0x_your_private_key>`)
-        console.log(`   Safe owner: ${config.owner}`)
+        const erc20Iface  = new ethers.Interface(ERC20_ABI)
+        const approveData = erc20Iface.encodeFunctionData('approve', [ORDERLY_VAULT, ethers.MaxUint256])
+        console.log('\n[5/5] ⚠️  One-time USDC approval required.')
+        console.log('   Queue this transaction in your Safe app and execute it:')
+        console.log(`\n   App:   https://app.safe.global/transactions/queue?safe=base:${config.safe}`)
+        console.log(`   To:    ${USDC_ADDRESS}  (USDC)`)
+        console.log(`   Value: 0`)
+        console.log(`   Data:  ${approveData}`)
+        console.log('\n   This is a one-time approval. Deposits will work automatically after.')
     }
 
     console.log(`\nAccount ID: ${BROKER_ID}|${agentWallet.address.toLowerCase()}`)
@@ -878,15 +876,16 @@ async function handleWithdraw(args) {
     const withdrawNonce = BigInt(nonceData.data.withdraw_nonce)
     const timestamp     = BigInt(Date.now())
 
-    // Amount in USDC base units (8 decimals for Orderly withdrawal, NOT 6)
-    const amountUnits = BigInt(Math.round(withdrawAmount * 1e8))
+    // Amount in USDC base units (6 decimals)
+    const amountUnits = BigInt(Math.round(withdrawAmount * 1e6))
 
-    // Sign Withdraw EIP-712 — agent signs on behalf of Safe's account
-    // Receiver = agent wallet (funds come here, then "collect" sends to Safe)
+    // Withdraw directly to Safe — agent wallet never holds user funds
+    const safeAddress = config.safe
+
     const withdrawMsg = {
         brokerId:      BROKER_ID,
         chainId:       BigInt(CHAIN_ID),
-        receiver:      agentAddr,
+        receiver:      safeAddress,
         token:         'USDC',
         amount:        amountUnits,
         withdrawNonce,
@@ -902,7 +901,7 @@ async function handleWithdraw(args) {
         message: {
             brokerId:      BROKER_ID,
             chainId:       CHAIN_ID,
-            receiver:      agentAddr.toLowerCase(),
+            receiver:      safeAddress.toLowerCase(),
             token:         'USDC',
             amount:        Number(amountUnits),
             withdrawNonce: Number(withdrawNonce),
@@ -920,9 +919,9 @@ async function handleWithdraw(args) {
 
     console.log('\nWITHDRAWAL REQUESTED')
     console.log(`   Amount:    $${withdrawAmount.toFixed(2)} USDC`)
-    console.log(`   Receiver:  ${agentAddr}`)
+    console.log(`   Receiver:  ${safeAddress} (Safe)`)
     console.log(`   Orderly processes withdrawals periodically (~30 min).`)
-    console.log(`   Run "node perps.js collect --all" once funds arrive.`)
+    console.log(`   USDC will arrive directly in your Safe.`)
 }
 
 // ============================================================================
